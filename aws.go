@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/prometheus/client_golang/prometheus"
-	"regexp"
-	"strings"
-	"time"
 )
 
 func getLatestDatapoint(datapoints []*cloudwatch.Datapoint) *cloudwatch.Datapoint {
@@ -136,8 +137,19 @@ func scrape(collector *cwCollector, ch chan<- prometheus.Metric) {
 			labels := make([]string, 0, len(metric.LabelNames))
 			dimensions = []*cloudwatch.Dimension{}
 
-			//Try to match each dimensions to the regex
+			//Try to match each dimensions by name, and value to the regex
 			for _, dim := range met.Dimensions {
+
+				matchedName := false
+				for _, cfdim := range metric.ConfMetric.Dimensions {
+					if *dim.Name == cfdim {
+						matchedName = true
+					}
+				}
+				if !matchedName {
+					continue
+				}
+
 				dimRegex := metric.ConfMetric.DimensionsSelectRegex[*dim.Name]
 				if dimRegex == "" {
 					dimRegex = "\\b" + strings.Join(metric.ConfMetric.DimensionsSelect[*dim.Name], "\\b|\\b") + "\\b"
